@@ -1,0 +1,18 @@
+# Mac/Pythonのキャッシュファイル
+.DS_Store
+__pycache__/
+*.pyc
+
+# 依存関係（ローカル環境）
+.venv/
+venv/
+*.egg-info/
+
+# スクリプトが生成するディレクトリ
+/output/
+/logs/
+/inference/
+
+# データセット ！！！重要！！！
+# 非公開の研究データを誤ってアップロードしないよう注意
+/data/

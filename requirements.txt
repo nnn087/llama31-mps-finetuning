@@ -1,0 +1,21 @@
+# --- requirements.txt ---
+
+# LLMのコア機能
+transformers==4.57.1
+
+# LoRA
+peft==0.17.1
+
+# 分散処理やユーティリティ
+accelerate==1.11.0
+
+# データセットのロード
+datasets==4.3.0
+
+# 進捗表示
+tqdm==4.67.1
+
+# PyTorch (バージョンは環境依存がある)
+torch==2.9.0
+
+# bitsandbytes==0.42.0 # MPS環境では不要
