@@ -263,13 +263,21 @@ def main():
         sys.exit(1)
 
     # --- 1. デバイスと環境のチェック ---
+    logger.info("--- 1. デバイスと環境のチェック ---")
     if torch.backends.mps.is_available():
         DEVICE = "mps" # MPSのとき
-        device_map = None 
+        device_map = None # MPSは 'auto' に非対応。CPUロードが必須
         logger.info(f"デバイス: {DEVICE} (Metal Performance Shaders が利用可能です)。")
         logger.info("モデルは安定性のため float16 で、CPUにロードされます (device_map=None)。")
+
+    elif torch.cuda.is_available(): # CUDA用
+        DEVICE = "cuda"
+        device_map = "auto" # ★ CUDAは 'auto' を使う
+        logger.info(f"デバイス: {DEVICE} (CUDA が利用可能です)。")
+        logger.info("モデルは float16 で、CUDAにロードされます (device_map='auto')。")
+        
     else:
-        DEVICE = "cpu" # CPUのとき　＊すごい時間かかったので中止したほうがいいかもしれない
+        DEVICE = "cpu" # CPUのとき　＊時間がかかったので中止したほうがいいかもしれない
         device_map = None
         logger.info("MPSは利用できません。CPUで実行します（非常に時間がかかります）。")
         
@@ -312,6 +320,7 @@ def main():
         use_fast=False,
     )
 
+    # --- 3. LoRA設定の適用 ---
     # Llamaモデルのトークナイザ設定
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right" 
@@ -421,7 +430,8 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
     )
-
+    
+    # --- 7. トレーニング開始 ---
     logger.info("--- 7. トレーニング開始 ---")
     train_result = trainer.train()
 
