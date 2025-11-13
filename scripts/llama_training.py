@@ -158,6 +158,14 @@ def parse_args():
         help="学習率 (LEARNING_RATE)。",
     )
     
+    # 評価/保存ステップ数
+    parser.add_argument(
+        "--eval_steps",
+        type=int,
+        default=100, 
+        help="Early Stoppingのための評価/保存ステップ数。",
+    )
+    
     # 訓練データセットのファイルパス
     parser.add_argument(
         "--train_data_file",
@@ -251,6 +259,7 @@ def main():
     transformers_logger = logging.getLogger("transformers")
     transformers_logger.setLevel(logging.INFO)
     transformers_logger.addHandler(file_handler)
+    transformers_logger.addHandler(stream_handler)
 
     # --- ログ設定　終了 ---
 
@@ -404,15 +413,37 @@ def main():
         per_device_eval_batch_size=BATCH_SIZE, # 引数（評価のバッチサイズ）
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS, # 引数から
         optim="adamw_torch",
-        save_strategy="epoch",
-        logging_steps=25,
+        
+        # --- ▼ Early Stopping (過学習対策) のための変更　ここから ▼ ---
+        # 1. "epoch" ではなく "steps" で評価・保存
+        evaluation_strategy="steps",
+        save_strategy="steps",
+        
+        # 2. 評価・保存の間隔をステップで指定
+        eval_steps=args.eval_steps,
+        save_steps=args.eval_steps,
+
+        # 3. ログもステップに合わせる
+        logging_steps=args.eval_steps, 
+        
+        # 4. 最高のモデルを自動でロードする設定 (最重要)
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss", # eval_loss を監視
+        greater_is_better=False,        # loss は低い方が良い
+
+        # 5. ディスク節約（最新のチェックポイントを2つだけ保持）
+        save_total_limit=2,
+
+        # 6. ログの出力先を指定
+        report_to="all", # "none" から変更
+        # --- ▲ Early Stopping (過学習対策) のための変更　ここまで　▲ ---
+        
         learning_rate=LEARNING_RATE, # 引数から
         fp16=FP16, 
         bf16=BF16, 
         group_by_length=True,
         lr_scheduler_type="cosine",
         disable_tqdm=False, 
-        report_to="none", 
         include_inputs_for_metrics=True,
         gradient_checkpointing=True, 
     )
