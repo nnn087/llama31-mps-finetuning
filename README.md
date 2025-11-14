@@ -64,11 +64,10 @@ pip install -r requirements.txt
 │   └── (推論用データ).jsonl
 │
 ├── scripts/
+│   ├── llama_run_training.sh   <-- 実行用シェル
+│   ├── llama_run_inference.sh  <-- 実行用シェル
 │   ├── llama_training.py       <-- Pythonスクリプト
 │   └── llama_inference.py      <-- Pythonスクリプト
-│
-├── llama_run_training.sh       <-- 実行用シェル
-├── llama_run_inference.sh      <-- 実行用シェル
 │
 ├── README.md
 ├── .gitignore
