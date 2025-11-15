@@ -184,6 +184,14 @@ def parse_args():
         help="bfloat16 トレーニングを有効にする (CUDA Ampere以降推奨)。"
     )
     
+    # Stage 1のLoRAアダプターパス (継続学習に対応)
+    parser.add_argument( 
+        '--resume_adapter_path',
+        type=str,
+        default=None,
+        help="Stage 1で訓練したLoRAアダプターのパス。これを指定した場合、継続学習モードになります。"
+    )
+
     # デフォルト値を設定
     # MPS (Mac) での実行を想定し、fp16をデフォルトTrueにします
     parser.set_defaults(fp16=True, bf16=False)
@@ -255,7 +263,7 @@ def setup_device():
 
 # --- 関数: モデルとトークナイザのロード、LoRA設定の分離 ---
 def load_model_and_tokenizer(args, hf_token, device_map):
-    """モデル、トークナイザをロードし、LoRAを適用する"""
+    """モデル、トークナイザをロードし、LoRAを適用する(継続学習に対応)"""
     
     effective_batch_size = args.batch_size * args.grad_acc_steps
     target_modules_list = LORA_TARGET_MAP.get(args.target_modules, LORA_TARGET_MAP["qv"])
@@ -284,6 +292,36 @@ def load_model_and_tokenizer(args, hf_token, device_map):
 
     # メモリ節約のため、勾配チェックポインティングを有効化
     model.gradient_checkpointing_enable()
+
+
+    # LoRAの適用または継続学習のロード
+    # ------------------------------------
+    if args.resume_adapter_path:
+        # 継続学習モード: 既存のLoRAアダプターをロード
+        if not os.path.exists(args.resume_adapter_path):
+            logger.error(f"エラー: 指定された継続学習パスが見つかりません: {args.resume_adapter_path}")
+            sys.exit(1)
+            
+        from peft import PeftModel # PeftModelのインポートを追加
+        logger.info(f"既存のLoRAアダプターをロードし、学習を継続します: {args.resume_adapter_path}")
+        
+        # PeftModelとしてロードし、is_trainable=Trueで学習可能にする
+        model = PeftModel.from_pretrained(model, args.resume_adapter_path, is_trainable=True)
+
+    else:
+        # 新規学習モード：新しいLoRA設定を適用 (元のコードと同じ)
+        target_modules_list = LORA_TARGET_MAP.get(args.target_modules, LORA_TARGET_MAP["qv"])
+        logger.info(f"--- LoRAターゲット: {args.target_modules} ({len(target_modules_list)}層) ---")
+        
+        peft_config = LoraConfig(
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            r=args.lora_r,
+            bias="none",
+            task_type="CAUSAL_LM",
+            target_modules=target_modules_list,
+        )
+        model = get_peft_model(model, peft_config)
         
     # トークナイザのロード
     tokenizer = AutoTokenizer.from_pretrained(
@@ -297,17 +335,6 @@ def load_model_and_tokenizer(args, hf_token, device_map):
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right" 
 
-    # --- LoRA設定の適用 ---
-    peft_config = LoraConfig(
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        r=args.lora_r,
-        bias="none",
-        task_type="CAUSAL_LM",
-        target_modules=target_modules_list,
-    )
-
-    model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
     
     return model, tokenizer

@@ -25,24 +25,40 @@ BASE_MODEL_ID="meta-llama/Meta-Llama-3.1-8B-Instruct"  # Instruct-Tunedモデル
 # 'all' は全ての線形層
 TARGET_MODULES="all"
 
-# 学習済みモデルの出力ディレクトリ名 (./output/ の下のフォルダ名)
-# 例: LoRAのターゲット層の名前を使用する。'qv', 'all' など。
-# 基本的にはターゲット層の名前が設定される
-OUTPUT_DIR_NAME="llama_${TARGET_MODULES}"
+# 修正・追加
+# 実行するタスクの「ディレクトリ名」を指定します (例: task_easy, task_hard,multi,debug)
+# 下記から選択します
+# task_easy 簡単なタスク
+# task_hard 難しいタスク
+# task_mixed 混合タスク
+# debug デバッグ用
+TASK_NAME="task_easy"
 
-# 修正・新規追加: データセットの件数を定義 
-# 処理したいデータセットの件数を設定 (例: 450, 35000)
-DATASET_SIZE=5 
+# 修正・追加
+# 学習済みモデルの出力ディレクトリ名 (タスク名に基づいて自動生成)
+OUTPUT_DIR_NAME="llama_${TASK_NAME}"
 
-# 自動生成: データセットファイル名 (DATASET_SIZEに基づいて自動決定) 
-# 'data/' フォルダのパスは 'training.py' 側で調整可能だが、ここでは固定
-TRAIN_DATA_FILE="../data/llama_train_${DATASET_SIZE}.jsonl" 
-EVAL_DATA_FILE="../data/llama_eval_${DATASET_SIZE}.jsonl"   
+# 修正・追加
+# 訓練データセットの「実際の件数」をステップ計算用に指定します
+# (ファイルパスにはもう使いません)
+DATASET_SIZE=24500 # 例: stage1_easy の訓練件数
+
+# 修正・追加
+# データセットのパスをタスク名ベースで「直接指定」します
+TRAIN_DATA_FILE="../data/${TASK_NAME}/train.jsonl" 
+EVAL_DATA_FILE="../data/${TASK_NAME}/eval.jsonl"   
+
+# 修正・追加
+# Stage 1のLoRAアダプターパス (継続学習の起点)
+# 新規学習(Stage 1)の場合は "" (空欄) のままにする
+# 逐次学習(Stage 2)の場合はここに Stage 1 の出力パスを記述する
+# 例: "../output/llama_stage1_easy/final_checkpoint"
+RESUME_PATH=""
 
 # ハイパーパラメータ
 MAX_SEQ_LENGTH=600        # 最大系列長 (推論スクリプトに合わせる)
 NUM_EPOCHS=1              # エポック数
-TRAIN_SIZE_LIMIT=1       # 訓練データ制限 (-1で無制限)
+TRAIN_SIZE_LIMIT=-1       # 訓練データ制限 (-1で無制限)
 BATCH_SIZE=1              # デバイスごとのバッチサイズ
 GRAD_ACC_STEPS=8          # 勾配蓄積ステップ数
 LEARNING_RATE=3e-4        # 学習率
@@ -129,7 +145,8 @@ python llama_training.py \
     --num_workers $NUM_WORKERS \
     --log_dir "$LOG_DIR" \
     --eval_steps $EVAL_STEPS \
-    $FP16_FLAG
+    $FP16_FLAG \
+    --resume_adapter_path "$RESUME_PATH"
 
 echo "--- トレーニング処理が完了しました ---"
 echo "結果は ${OUTPUT_DIR}/final_checkpoint に保存され、"
