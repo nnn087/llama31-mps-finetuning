@@ -25,38 +25,31 @@ BASE_MODEL_ID="meta-llama/Meta-Llama-3.1-8B-Instruct"  # Instruct-Tunedモデル
 # 'all' は全ての線形層
 TARGET_MODULES="all"
 
-# 修正・追加
 # 実行するタスクの「ディレクトリ名」を指定します (例: task_easy, task_hard,multi,debug)
 # 下記から選択します
 # task_easy 簡単なタスク
 # task_hard 難しいタスク
 # task_mixed 混合タスク
-# debug デバッグ用
+# task_easy_debug デバッグ用_簡単なタスク
+# task_hard_debug デバッグ用_難しいタスク
+# task_mixed_debug デバッグ用_混合タスク
 TASK_NAME="task_easy"
 
-# 修正・追加
 # 学習済みモデルの出力ディレクトリ名 (タスク名に基づいて自動生成)
 OUTPUT_DIR_NAME="llama_${TASK_NAME}"
 
-# 修正・追加
-# 訓練データセットの「実際の件数」をステップ計算用に指定します
-# (ファイルパスにはもう使いません)
-DATASET_SIZE=24500 # 例: stage1_easy の訓練件数
-
-# 修正・追加
 # データセットのパスをタスク名ベースで「直接指定」します
-TRAIN_DATA_FILE="../data/${TASK_NAME}/train.jsonl" 
-EVAL_DATA_FILE="../data/${TASK_NAME}/eval.jsonl"   
+TRAIN_DATA_FILE="./data/${TASK_NAME}/train.jsonl" 
+EVAL_DATA_FILE="./data/${TASK_NAME}/eval.jsonl"   
 
-# 修正・追加
 # Stage 1のLoRAアダプターパス (継続学習の起点)
-# 新規学習(Stage 1)の場合は "" (空欄) のままにする
-# 逐次学習(Stage 2)の場合はここに Stage 1 の出力パスを記述する
-# 例: "../output/llama_stage1_easy/final_checkpoint"
+# 新規学習の場合は "" (空欄) のままにする
+# 逐次学習(簡単なタスク→難しいタスク)の場合はここに簡単なタスクの出力パスを記述する
+# 例: "../output/task_easy/final_checkpoint"
 RESUME_PATH=""
 
 # ハイパーパラメータ
-MAX_SEQ_LENGTH=600        # 最大系列長 (推論スクリプトに合わせる)
+MAX_SEQ_LENGTH=450        # 最大系列長 (推論スクリプトに合わせる)
 NUM_EPOCHS=1              # エポック数
 TRAIN_SIZE_LIMIT=-1       # 訓練データ制限 (-1で無制限)
 BATCH_SIZE=1              # デバイスごとのバッチサイズ
@@ -71,13 +64,23 @@ SEED=42                   # 乱数シード値（再現性確保）
 NUM_WORKERS=4             # データセット前処理に使用するCPUコア数
 
 # ログ/評価/精度 設定
-LOG_DIR="../logs"                  # ログファイルの保存先
+LOG_DIR="./logs"                  # ログファイルの保存先
 FP16_FLAG="--fp16"                # 精度設定フラグ (--fp16 または --bf16、使用しない場合は空欄 "")
 # BF16_FLAG=""                    # BF16を使用する場合は "--bf16"
 
 # ===============================================
 # 評価ステップ自動計算ブロック 
 # ===============================================
+
+# 訓練データファイルの存在チェック
+if [ ! -f "$TRAIN_DATA_FILE" ]; then
+    echo "エラー: 訓練データファイルが見つかりません: $TRAIN_DATA_FILE"
+    echo "データセット作成スクリプトを先に実行してください。"
+    exit 1
+fi
+# 訓練データの行数をカウントし、DATASET_SIZEに代入
+DATASET_SIZE=$(cat "$TRAIN_DATA_FILE" | wc -l)
+echo "自動計算された訓練データ件数 (DATASET_SIZE): $DATASET_SIZE"
 
 # 1. 実質バッチサイズを計算 (整数)
 EFFECTIVE_BATCH_SIZE=$((BATCH_SIZE * GRAD_ACC_STEPS))
@@ -126,7 +129,7 @@ fi
 
 # Pythonスクリプトの実行
 # scripts/train.pyが引数を自動的に解析します。
-python llama_training.py \
+python scripts/llama_training.py \
     --model_id "$BASE_MODEL_ID" \
     --target_modules "$TARGET_MODULES" \
     --output_dir "$OUTPUT_DIR" \
